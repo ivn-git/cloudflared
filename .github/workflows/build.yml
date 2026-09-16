@@ -1,0 +1,126 @@
+name: Build and Optimize cloudflared for aarch64
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+env:
+  TZ: Asia/Novosibirsk
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      ver: ${{ steps.getversion.outputs.ver }}
+      cver: ${{ steps.getversion.outputs.cver }}
+    steps:
+      - name: Check latest versions
+        id: getversion
+        run: |
+          ver=$(curl -s https://api.github.com/repos/cloudflare/cloudflared/releases/latest | jq -r '.tag_name')
+          cver=$(curl -s https://api.github.com/repos/${{ github.repository }}/releases/latest | jq -r '.tag_name // empty')
+          echo "ver=${ver}" >> $GITHUB_OUTPUT
+          echo "cver=${cver}" >> $GITHUB_OUTPUT
+      - name: Clear old workflow runs
+        uses: Mattraks/delete-workflow-runs@main
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          retain_days: 0
+          keep_minimum_runs: 0
+
+  build:
+    runs-on: ubuntu-latest
+    needs: check
+    if: ${{ needs.check.outputs.ver != '' && needs.check.outputs.ver != needs.check.outputs.cver }}
+    steps:
+      - name: Fetch latest Go version
+        run: |
+          latest_version=$(curl -L -k -s https://golang.org/dl/?mode=json | grep -m 1 -o '"version": "[^"]*' | sed 's/"version": "//' | tr -d 'go" ')
+          echo "Latest Go version found: $latest_version"
+          echo "gotag=$latest_version" >> $GITHUB_ENV
+      - name: Setup Go environment
+        uses: actions/setup-go@main
+        with:
+          go-version: ${{ env.gotag }}
+      - name: Install UPX Packer
+        uses: crazy-max/ghaction-upx@master
+        with:
+          version: v4.2.4
+          install-only: true
+      - name: Compile and Optimize
+        run: |
+          git clone https://github.com/cloudflare/cloudflared -b ${{ needs.check.outputs.ver }} ../src
+          cd ../src
+          sudo timedatectl set-timezone "Asia/Novosibirsk"
+          sed -i "s|-ldflags='|-ldflags=' -s -w |g" ./Makefile
+          
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 make cloudflared
+          
+          upx --lzma --best cloudflared
+          
+          mkdir -p ./bin
+          mv -f ./cloudflared ./bin/cloudflared-linux-arm64
+          
+          cd ./bin
+          echo $(md5sum cloudflared-linux-arm64 | awk '{print $1;}') > MD5.txt
+          echo "build_time=$(date '+%Y-%m-%d %H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
+      - name: Run QEMU Verification Test
+        run: |
+          curl -sL -o /tmp/qemu-aarch64-static "https://github.com/multiarch/qemu-user-static/releases/download/v7.2.0-1/qemu-aarch64-static"
+          chmod +x /tmp/qemu-aarch64-static
+          cd ../src/bin
+          echo "===== Testing cloudflared -h via QEMU-aarch64 ====="
+          if ! /tmp/qemu-aarch64-static ./cloudflared-linux-arm64 -h > /tmp/help.txt 2>&1; then
+            echo "::error::Failed to execute cloudflared -h inside QEMU"
+            cat /tmp/help.txt
+            exit 1
+          fi
+          cat /tmp/help.txt
+          grep -q "cloudflared" /tmp/help.txt || { echo "::error::Unexpected terminal output from cloudflared"; exit 1; }
+      - name: Publish Release Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          tag_name: ${{ needs.check.outputs.ver }}
+          body: |
+            ### Automated Optimized Build for aarch64 (ARM64)
+            * **Build Time:** ${{ env.build_time }}
+            * **Optimization:** Stripped debug symbols (`-s -w`) + Packed via UPX v4.2.4 (LZMA High).
+            * **Upstream Updates:** [Official Cloudflare Release Notes](https://github.com/cloudflare/cloudflared/releases)
+            
+            | Artifact | Architecture | Target Device |
+            | --- | --- | --- |
+            | [cloudflared-linux-arm64](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/cloudflared-linux-arm64) | `aarch64` / `arm64` | Keenetic KN-1811 |
+          files: |
+              ../src/bin/*
+
+  keepalive-workflow:
+    name: Keep Workflow Active
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check last commit date
+        id: check_commit_date
+        run: |
+          LAST_COMMIT_DATE=$(git log -1 --format=%cd --date=short)
+          echo "Last commit date: $LAST_COMMIT_DATE"
+          LAST_COMMIT_TIMESTAMP=$(date -d "$LAST_COMMIT_DATE" +%s)
+          CURRENT_TIMESTAMP=$(date +%s)
+          DIFF_DAYS=$(( (CURRENT_TIMESTAMP - LAST_COMMIT_TIMESTAMP) / 86400 ))
+          echo "Days since last commit: $DIFF_DAYS"
+          echo "diff_days=$DIFF_DAYS" >> $GITHUB_ENV
+      - name: Keepalive Push
+        if: ${{ env.diff_days > 50 }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit --allow-empty -m "Automated empty commit to keep workflow active"
+          git push
