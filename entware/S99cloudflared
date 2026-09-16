@@ -9,6 +9,11 @@ REPO="ivn-git/cloudflared"
 
 case $1 in
 	start)
+		if [ ! -f "$CONFIG" ]; then
+			echo "Error: Configuration file $CONFIG not found!"
+			exit 1
+		fi
+
 		if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
 			echo 'cloudflared is already running.'
 		else
@@ -38,7 +43,7 @@ case $1 in
 			echo 'cloudflared is not running.'
 		fi
 		;;
-update)
+	update)
 		BASE_URL="https://github.com/${REPO}/releases/latest/download"
 		
 		echo 'Checking for cloudflared updates...'
