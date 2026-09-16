@@ -93,9 +93,9 @@ jobs:
             * **Optimization:** Stripped debug symbols (`-s -w`) + Packed via UPX v4.2.4 (LZMA High).
             * **Upstream Updates:** [Official Cloudflare Release Notes](https://github.com/cloudflare/cloudflared/releases)
             
-            | Artifact | Architecture | Target Device |
-            | --- | --- | --- |
-            | [cloudflared-linux-arm64](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/cloudflared-linux-arm64) | `aarch64` / `arm64` | Keenetic KN-1811 |
+            | Artifact | Architecture |
+            | --- | --- |
+            | [cloudflared-linux-arm64](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/cloudflared-linux-arm64) | `aarch64` / `arm64` |
           files: |
               ../src/bin/*
 
