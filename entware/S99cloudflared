@@ -44,11 +44,17 @@ case $1 in
 		fi
 		;;
 	update)
+		if ! wget --help 2>&1 | grep -q '\--no-check-certificate'; then
+			echo "Error: Standard wget does not support HTTPS (GitHub)."
+			echo "Please install wget-ssl using: opkg update && opkg install wget-ssl"
+			exit 1
+		fi
+
 		BASE_URL="https://github.com/${REPO}/releases/latest/download"
 		
 		echo 'Checking for cloudflared updates...'
 		
-		REMOTE_MD5=$(curl -sL "${BASE_URL}/MD5.txt" | awk '{print $1}')
+		REMOTE_MD5=$(wget -qO- "${BASE_URL}/MD5.txt" | awk '{print $1}')
 		
 		if [ -z "$REMOTE_MD5" ]; then
 			echo 'Error: Failed to fetch remote release information.'
@@ -65,7 +71,7 @@ case $1 in
 			echo 'Latest version is already installed. No update required.'
 		else
 			echo 'New version found. Downloading update...'
-			curl -sL -o /tmp/cloudflared-new "${BASE_URL}/cloudflared-linux-arm64"
+			wget -q -O /tmp/cloudflared-new "${BASE_URL}/cloudflared-linux-arm64"
 			
 			if [ -s /tmp/cloudflared-new ]; then
 				$0 stop
