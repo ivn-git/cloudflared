@@ -84,25 +84,27 @@ jobs:
           grep -q "cloudflared" /tmp/help.txt || { echo "::error::Unexpected terminal output from cloudflared"; exit 1; }
       - name: Build IPK Package
         run: |
-          cd ../src
-          
           # Скачиваем стартап-скрипт из вашего репозитория
-          mkdir -p ./entware
-          curl -sL -o ./entware/S99cloudflared "https://raw.githubusercontent.com/${{ github.repository }}/main/entware/S99cloudflared"
+          mkdir -p /tmp/entware
+          curl -sL -o /tmp/entware/S99cloudflared "https://raw.githubusercontent.com/${{ github.repository }}/main/entware/S99cloudflared"
           
           BUILD_DIR="/tmp/ipk_build"
+          DEST_DIR="${GITHUB_WORKSPACE}/../src/bin"
+          
           rm -rf ${BUILD_DIR}
           mkdir -p ${BUILD_DIR}/data/opt/bin
           mkdir -p ${BUILD_DIR}/data/opt/etc/init.d
           mkdir -p ${BUILD_DIR}/data/opt/etc/cloudflared
           mkdir -p ${BUILD_DIR}/control
 
-          cp ./bin/cloudflared-linux-arm64 ${BUILD_DIR}/data/opt/bin/cloudflared
+          # Копируем бинарник и стартап-скрипт
+          cp ${DEST_DIR}/cloudflared-linux-arm64 ${BUILD_DIR}/data/opt/bin/cloudflared
           chmod 755 ${BUILD_DIR}/data/opt/bin/cloudflared
 
-          cp ./entware/S99cloudflared ${BUILD_DIR}/data/opt/etc/init.d/S99cloudflared
+          cp /tmp/entware/S99cloudflared ${BUILD_DIR}/data/opt/etc/init.d/S99cloudflared
           chmod 755 ${BUILD_DIR}/data/opt/etc/init.d/S99cloudflared
 
+          # Создаем control файл
           cat <<EOF > ${BUILD_DIR}/control/control
           Package: cloudflared
           Version: ${{ needs.check.outputs.ver }}
@@ -114,6 +116,7 @@ jobs:
           Description: Cloudflare Tunnel client optimized for Keenetic ARM64 (aarch64) routers.
           EOF
 
+          # Создаем postinst скрипт
           cat <<EOF > ${BUILD_DIR}/control/postinst
           #!/bin/sh
           chmod +x /opt/bin/cloudflared
@@ -127,15 +130,17 @@ jobs:
           EOF
           chmod 755 ${BUILD_DIR}/control/postinst
 
+          # Собираем архив IPK
           echo "2.0" > ${BUILD_DIR}/debian-binary
           cd ${BUILD_DIR}/control && tar --owner=0 --group=0 -czf ../control.tar.gz .
           cd ${BUILD_DIR}/data && tar --owner=0 --group=0 -czf ../data.tar.gz .
           cd ${BUILD_DIR}
           
           IPK_NAME="cloudflared_${{ needs.check.outputs.ver }}_aarch64-3.10.ipk"
-          tar -czf ../src/bin/${IPK_NAME} debian-binary control.tar.gz data.tar.gz
+          tar -czf ${DEST_DIR}/${IPK_NAME} debian-binary control.tar.gz data.tar.gz
           
-          cd ../src/bin
+          # Обновляем MD5
+          cd ${DEST_DIR}
           md5sum ${IPK_NAME} >> MD5.txt
       - name: Publish Release Assets
         uses: softprops/action-gh-release@v1
