@@ -68,7 +68,7 @@ jobs:
           
           cd ./bin
           echo $(md5sum cloudflared-linux-arm64 | awk '{print $1;}') > MD5.txt
-          echo "build_time=$(date '+%Y-%m-%d %H:%M:%S' | jq -sRr @uri)" >> $GITHUB_ENV
+          echo "build_time=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
       - name: Run QEMU Verification Test
         run: |
           curl -sL -o /tmp/qemu-aarch64-static "https://github.com/multiarch/qemu-user-static/releases/download/v7.2.0-1/qemu-aarch64-static"
@@ -82,6 +82,61 @@ jobs:
           fi
           cat /tmp/help.txt
           grep -q "cloudflared" /tmp/help.txt || { echo "::error::Unexpected terminal output from cloudflared"; exit 1; }
+      - name: Build IPK Package
+        run: |
+          cd ../src
+          
+          # Скачиваем стартап-скрипт из вашего репозитория
+          mkdir -p ./entware
+          curl -sL -o ./entware/S99cloudflared "https://raw.githubusercontent.com/${{ github.repository }}/main/entware/S99cloudflared"
+          
+          BUILD_DIR="/tmp/ipk_build"
+          rm -rf ${BUILD_DIR}
+          mkdir -p ${BUILD_DIR}/data/opt/bin
+          mkdir -p ${BUILD_DIR}/data/opt/etc/init.d
+          mkdir -p ${BUILD_DIR}/data/opt/etc/cloudflared
+          mkdir -p ${BUILD_DIR}/control
+
+          cp ./bin/cloudflared-linux-arm64 ${BUILD_DIR}/data/opt/bin/cloudflared
+          chmod 755 ${BUILD_DIR}/data/opt/bin/cloudflared
+
+          cp ./entware/S99cloudflared ${BUILD_DIR}/data/opt/etc/init.d/S99cloudflared
+          chmod 755 ${BUILD_DIR}/data/opt/etc/init.d/S99cloudflared
+
+          cat <<EOF > ${BUILD_DIR}/control/control
+          Package: cloudflared
+          Version: ${{ needs.check.outputs.ver }}
+          Depends: libc, libssp, librt, ca-certificates
+          Section: net
+          Architecture: aarch64-3.10
+          Maintainer: ivn-git
+          Source: https://github.com/${{ github.repository }}
+          Description: Cloudflare Tunnel client optimized for Keenetic ARM64 (aarch64) routers.
+          EOF
+
+          cat <<EOF > ${BUILD_DIR}/control/postinst
+          #!/bin/sh
+          chmod +x /opt/bin/cloudflared
+          chmod +x /opt/etc/init.d/S99cloudflared
+          if [ ! -f /opt/etc/cloudflared/config.yml ]; then
+              echo "# Please configure /opt/etc/cloudflared/config.yml before starting" > /opt/etc/cloudflared/config.yml
+          fi
+          echo "cloudflared installed successfully!"
+          echo "Configure /opt/etc/cloudflared/config.yml and start service: /opt/etc/init.d/S99cloudflared start"
+          exit 0
+          EOF
+          chmod 755 ${BUILD_DIR}/control/postinst
+
+          echo "2.0" > ${BUILD_DIR}/debian-binary
+          cd ${BUILD_DIR}/control && tar --owner=0 --group=0 -czf ../control.tar.gz .
+          cd ${BUILD_DIR}/data && tar --owner=0 --group=0 -czf ../data.tar.gz .
+          cd ${BUILD_DIR}
+          
+          IPK_NAME="cloudflared_${{ needs.check.outputs.ver }}_aarch64-3.10.ipk"
+          tar -czf ../src/bin/${IPK_NAME} debian-binary control.tar.gz data.tar.gz
+          
+          cd ../src/bin
+          md5sum ${IPK_NAME} >> MD5.txt
       - name: Publish Release Assets
         uses: softprops/action-gh-release@v1
         with:
@@ -93,9 +148,10 @@ jobs:
             * **Optimization:** Stripped debug symbols (`-s -w`) + Packed via UPX v4.2.4 (LZMA High).
             * **Upstream Updates:** [Official Cloudflare Release Notes](https://github.com/cloudflare/cloudflared/releases)
             
-            | Artifact | Architecture |
-            | --- | --- |
-            | [cloudflared-linux-arm64](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/cloudflared-linux-arm64) | `aarch64` / `arm64` |
+            | Artifact | Type | Description |
+            | --- | --- | --- |
+            | [cloudflared-linux-arm64](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/cloudflared-linux-arm64) | Binary | Standalone executable |
+            | [cloudflared_${{ needs.check.outputs.ver }}_aarch64-3.10.ipk](https://github.com/${{ github.repository }}/releases/download/${{ needs.check.outputs.ver }}/cloudflared_${{ needs.check.outputs.ver }}_aarch64-3.10.ipk) | OPKG Package | Auto-install package for Entware |
           files: |
               ../src/bin/*
 
