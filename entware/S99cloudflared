@@ -1,0 +1,81 @@
+#!/bin/sh
+
+PATH=/opt/sbin:/opt/bin:/opt/usr/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+CONFIG="/opt/etc/cloudflared/config.yml"
+PIDFILE="/var/run/cloudflared.pid"
+
+REPO="ivn-git/cloudflared"
+
+case $1 in
+	start)
+		if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
+			echo 'cloudflared is already running.'
+		else
+			cloudflared tunnel --config "$CONFIG" run > /dev/null 2>&1 < /dev/null &
+			echo $! > "$PIDFILE"
+			echo 'cloudflared started.'
+		fi
+		;;
+	stop)
+		if [ -f "$PIDFILE" ]; then
+			kill $(cat "$PIDFILE") 2>/dev/null && rm -f "$PIDFILE"
+			echo 'cloudflared stopped.'
+		else
+			killall cloudflared 2>/dev/null
+			echo 'cloudflared stopped (killall).'
+		fi
+		;;
+	restart)
+		$0 stop
+		sleep 1
+		$0 start
+		;;
+	status)
+		if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
+			echo 'cloudflared is running.'
+		else
+			echo 'cloudflared is not running.'
+		fi
+		;;
+update)
+		BASE_URL="https://github.com/${REPO}/releases/latest/download"
+		
+		echo 'Checking for cloudflared updates...'
+		
+		REMOTE_MD5=$(curl -sL "${BASE_URL}/MD5.txt" | awk '{print $1}')
+		
+		if [ -z "$REMOTE_MD5" ]; then
+			echo 'Error: Failed to fetch remote release information.'
+			exit 1
+		fi
+		
+		if [ -f /opt/bin/cloudflared ]; then
+			LOCAL_MD5=$(md5sum /opt/bin/cloudflared | awk '{print $1}')
+		else
+			LOCAL_MD5=""
+		fi
+		
+		if [ "$LOCAL_MD5" = "$REMOTE_MD5" ]; then
+			echo 'Latest version is already installed. No update required.'
+		else
+			echo 'New version found. Downloading update...'
+			curl -sL -o /tmp/cloudflared-new "${BASE_URL}/cloudflared-linux-arm64"
+			
+			if [ -s /tmp/cloudflared-new ]; then
+				$0 stop
+				chmod +x /tmp/cloudflared-new
+				mv -f /tmp/cloudflared-new /opt/bin/cloudflared
+				echo 'cloudflared binary updated successfully.'
+				echo 'Restarting cloudflared...'
+				$0 start
+			else
+				echo 'Error: Failed to download update file or file is empty.'
+				rm -f /tmp/cloudflared-new
+			fi
+		fi
+		;;
+	*)
+		echo "Usage: $0 {start|stop|restart|status|update}"
+		;;
+esac
