@@ -122,10 +122,10 @@ jobs:
           chmod +x /opt/bin/cloudflared
           chmod +x /opt/etc/init.d/S99cloudflared
           if [ ! -f /opt/etc/cloudflared/config.yml ]; then
-              cat << 'EOF_CONFIG' > /opt/etc/cloudflared/config.yml
+          cat << 'EOF_CONFIG' > /opt/etc/cloudflared/config.yml
           $(curl -sL "https://raw.githubusercontent.com/${{ github.repository }}/main/entware/sample_config.yml")
-              EOF_CONFIG
-              echo "Please configure /opt/etc/cloudflared/config.yml before starting!"
+          EOF_CONFIG
+          echo "Please configure /opt/etc/cloudflared/config.yml before starting!"
           fi
           echo "cloudflared installed successfully!"
           echo "Configure /opt/etc/cloudflared/config.yml and start service: /opt/etc/init.d/S99cloudflared start"
