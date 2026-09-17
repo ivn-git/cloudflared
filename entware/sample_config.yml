@@ -7,7 +7,7 @@
 # using the dashboard, API, or Terraform.
 
 #tunnel: <Tunnel-UUID>
-#credentials-file: /etc/cloudflared/<Tunnel-UUID>.json
+#credentials-file: /opt/etc/cloudflared/<Tunnel-UUID>.json
 #
 #ingress:
 #  - hostname: luci.example.com
@@ -15,3 +15,4 @@
 #  - hostname: ssh.example.com
 #    service: ssh://localhost:22
 #  - service: http_status:404
+#logfile: /var/log/cloudflared.log
