@@ -87,7 +87,6 @@ jobs:
           # Скачиваем стартап-скрипт из вашего репозитория
           mkdir -p /tmp/entware
           curl -sL -o /tmp/entware/S99cloudflared "https://raw.githubusercontent.com/${{ github.repository }}/main/entware/S99cloudflared"
-          curl -sL -o /tmp/entware/sample_config.yml "https://raw.githubusercontent.com/${{ github.repository }}/main/entware/sample_config.yml"
           
           BUILD_DIR="/tmp/ipk_build"
           DEST_DIR="${GITHUB_WORKSPACE}/../src/bin"
@@ -123,14 +122,15 @@ jobs:
           chmod +x /opt/bin/cloudflared
           chmod +x /opt/etc/init.d/S99cloudflared
           if [ ! -f /opt/etc/cloudflared/config.yml ]; then
-              echo "TEMPLATE_CONFIG" > /opt/etc/cloudflared/config.yml
+              cat << 'EOF_CONFIG' > /opt/etc/cloudflared/config.yml
+              $(curl -sL "https://raw.githubusercontent.com/${{ github.repository }}/main/entware/sample_config.yml")
+              EOF_CONFIG
               echo "Please configure /opt/etc/cloudflared/config.yml before starting!"
           fi
           echo "cloudflared installed successfully!"
           echo "Configure /opt/etc/cloudflared/config.yml and start service: /opt/etc/init.d/S99cloudflared start"
           exit 0
           EOF
-          sed -i -e "/TEMPLATE_CONFIG/{r /tmp/entware/sample_config.yml" -e "d}" ${BUILD_DIR}/control/postinst
           chmod 755 ${BUILD_DIR}/control/postinst
 
           # Собираем архив IPK
