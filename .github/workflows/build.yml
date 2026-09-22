@@ -170,7 +170,7 @@ jobs:
       actions: write
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - name: Check last commit date
         id: check_commit_date
         run: |
