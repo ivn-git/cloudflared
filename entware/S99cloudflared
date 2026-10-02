@@ -17,7 +17,7 @@ case $1 in
 		if [ -f "$PIDFILE" ] && kill -0 $(cat "$PIDFILE") 2>/dev/null; then
 			echo 'cloudflared is already running.'
 		else
-			cloudflared tunnel --config "$CONFIG" run > /dev/null 2>&1 < /dev/null &
+			cloudflared tunnel --no-autoupdate --config "$CONFIG" run > /dev/null 2>&1 < /dev/null &
 			echo $! > "$PIDFILE"
 			echo 'cloudflared started.'
 		fi
