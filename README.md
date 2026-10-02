@@ -24,7 +24,45 @@ Use the init script to control the daemon:
 - **Stop service:** `/opt/etc/init.d/S99cloudflared stop`
 - **Restart service:** `/opt/etc/init.d/S99cloudflared restart`
 - **Check status:** `/opt/etc/init.d/S99cloudflared status`
-- **Auto-update binary:** `/opt/etc/init.d/S99cloudflared update`
+- **Update binary:** `/opt/etc/init.d/S99cloudflared update`
+
+---
+
+## Updating
+
+This project uses its own update mechanism through the `S99cloudflared` init script.
+
+To check for and install the latest optimized ARM64 build, run:
+
+```bash
+/opt/etc/init.d/S99cloudflared update
+```
+
+The update script:
+
+1. Checks the latest release published by this project.
+2. Compares the MD5 checksum with the currently installed binary.
+3. Downloads the latest optimized `aarch64` binary if an update is available.
+4. Replaces the installed binary.
+5. Restarts the `cloudflared` service.
+
+The update command requires an HTTPS-capable `wget`. If necessary, install it with:
+
+```bash
+opkg update && opkg install wget-ssl
+```
+
+> **Warning:** Do not use the built-in `cloudflared update` command.
+>
+> Do not enable automatic updates with `--autoupdate-freq`.
+>
+> The built-in updater downloads the original Cloudflare release binary. That binary is not built using this project's ARM64 build configuration, optimizations, or UPX compression. Using the built-in updater will replace the optimized binary with the original unoptimized version.
+
+The supported update command for this project is:
+
+```bash
+/opt/etc/init.d/S99cloudflared update
+```
 
 ---
 
