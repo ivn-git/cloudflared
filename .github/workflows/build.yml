@@ -56,6 +56,25 @@ jobs:
         run: |
           git clone https://github.com/cloudflare/cloudflared -b ${{ needs.check.outputs.ver }} ../src
           cd ../src
+          
+          FLAG_FILE="cmd/cloudflared/tunnel/cmd.go"
+
+          if ! sed -n \
+            '/Name:[[:space:]]*cfdflags\.NoAutoUpdate/,/Value:[[:space:]]*false/p' \
+            "$FLAG_FILE" | grep -q 'Value:[[:space:]]*false'; then
+            echo "::warning file=$FLAG_FILE::Original Value: false for NoAutoUpdate was not found"
+          fi
+
+          sed -i \
+            '/Name:[[:space:]]*cfdflags\.NoAutoUpdate/,/Value:[[:space:]]*false/ s/Value:[[:space:]]*false/Value:   true/' \
+            "$FLAG_FILE"
+
+          if ! sed -n \
+            '/Name:[[:space:]]*cfdflags\.NoAutoUpdate/,/Value:[[:space:]]*true/p' \
+            "$FLAG_FILE" | grep -q 'Value:[[:space:]]*true'; then
+            echo "::warning file=$FLAG_FILE::Failed to set Value: true for NoAutoUpdate"
+          fi
+          
           sudo timedatectl set-timezone "Asia/Novosibirsk"
           sed -i "s|-ldflags='|-ldflags=' -s -w |g" ./Makefile
           
