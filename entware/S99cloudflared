@@ -74,6 +74,12 @@ case $1 in
 			wget -q -O /tmp/cloudflared-new "${BASE_URL}/cloudflared-linux-arm64"
 			
 			if [ -s /tmp/cloudflared-new ]; then
+				DOWNLOADED_MD5=$(md5sum /tmp/cloudflared-new | awk '{print $1}')
+				if [ "$DOWNLOADED_MD5" != "$REMOTE_MD5" ]; then
+					echo 'Error: Downloaded binary checksum mismatch.'
+					rm -f /tmp/cloudflared-new
+					exit 1
+				fi
 				$0 stop
 				chmod +x /tmp/cloudflared-new
 				mv -f /tmp/cloudflared-new /opt/bin/cloudflared
