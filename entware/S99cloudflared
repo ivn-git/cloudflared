@@ -54,8 +54,8 @@ case $1 in
 		
 		echo 'Checking for cloudflared updates...'
 		
-		REMOTE_MD5=$(wget -qO- "${BASE_URL}/MD5.txt" | awk '{print $1}')
-		
+		REMOTE_MD5=$(wget -qO- "${BASE_URL}/MD5.txt" | awk '$2 == "cloudflared-linux-arm64" {print $1; exit}')
+    	
 		if [ -z "$REMOTE_MD5" ]; then
 			echo 'Error: Failed to fetch remote release information.'
 			exit 1
