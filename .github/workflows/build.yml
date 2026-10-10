@@ -86,7 +86,7 @@ jobs:
           mv -f ./cloudflared ./bin/cloudflared-linux-arm64
           
           cd ./bin
-          echo $(md5sum cloudflared-linux-arm64 | awk '{print $1;}') > MD5.txt
+          md5sum cloudflared-linux-arm64 > MD5.txt
           echo "build_time=$(date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_ENV
       - name: Run QEMU Verification Test
         run: |
